@@ -1629,7 +1629,7 @@ success:
         dbprint(VMI_DEBUG_KVM, "--KVMI failed\n");
         return VMI_FAILURE;
     }
-    dbprint(VMI_DEBUG_KVM, "--KVMI connected \o/\n");
+    dbprint(VMI_DEBUG_KVM, "--KVMI connected\n");
 #endif
 
 #if ENABLE_SHM_SNAPSHOT == 1
