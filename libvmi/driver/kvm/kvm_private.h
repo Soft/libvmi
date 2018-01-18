@@ -53,6 +53,12 @@ typedef struct kvm_instance {
     char *shm_snapshot_cpu_regs;  /** string of dumped CPU registers */
     v2m_table_t shm_snapshot_v2m_tables; /** V2m tables of all pids */
 #endif /* ENABLE_SHM_SNAPSHOT */
+#ifdef HAVE_LIBKVMI
+    void *kvmi;
+    void *kvmi_dom;
+    pthread_mutex_t kvm_connect_mutex;
+    pthread_cond_t kvm_start_cond;
+#endif
 } kvm_instance_t;
 
 static inline kvm_instance_t *
