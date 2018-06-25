@@ -77,6 +77,51 @@ enum segment_type {
     SEGMENT_ATTR
 };
 
+static int translate_msr_index(int index) {
+    switch (index) {
+    case MSR_EFER:                  return 0xc0000080;
+    case MSR_STAR:                  return 0xc0000081;
+    case MSR_LSTAR:                 return 0xc0000082;
+    case MSR_CSTAR:                 return 0xc0000083;
+    case MSR_SYSCALL_MASK:          return 0xc0000084;
+    case MSR_SHADOW_GS_BASE:        return 0xc0000102;
+    case MSR_TSC_AUX:               return 0xc0000103;
+    case MSR_MTRRfix64K_00000:      return 0x00000250;
+    case MSR_MTRRfix16K_80000:      return 0x00000258;
+    case MSR_MTRRfix16K_A0000:      return 0x00000259;
+    case MSR_MTRRfix4K_C0000:       return 0x00000268;
+    case MSR_MTRRfix4K_C8000:       return 0x00000269;
+    case MSR_MTRRfix4K_D0000:       return 0x0000026a;
+    case MSR_MTRRfix4K_D8000:       return 0x0000026b;
+    case MSR_MTRRfix4K_E0000:       return 0x0000026c;
+    case MSR_MTRRfix4K_E8000:       return 0x0000026d;
+    case MSR_MTRRfix4K_F0000:       return 0x0000026e;
+    case MSR_MTRRfix4K_F8000:       return 0x0000026f;
+    case MSR_MTRRdefType:           return 0x000002ff;
+    case MSR_IA32_MC0_CTL:          return 0x00000400;
+    case MSR_IA32_MC0_STATUS:       return 0x00000401;
+    case MSR_IA32_MC0_ADDR:         return 0x00000402;
+    case MSR_IA32_MC0_MISC:         return 0x00000403;
+    case MSR_IA32_MC1_CTL:          return 0x00000404;
+    case MSR_IA32_MC0_CTL2:         return 0x00000280;
+    case MSR_AMD_PATCHLEVEL:        return 0x0000008b;
+    case MSR_AMD64_TSC_RATIO:       return 0xc0000104;
+    case MSR_IA32_P5_MC_ADDR:       return 0x00000000;
+    case MSR_IA32_P5_MC_TYPE:       return 0x00000001;
+    case MSR_IA32_TSC:              return 0x00000010;
+    case MSR_IA32_PLATFORM_ID:      return 0x00000017;
+    case MSR_IA32_EBL_CR_POWERON:   return 0x0000002a;
+    case MSR_IA32_EBC_FREQUENCY_ID: return 0x0000002c;
+    case MSR_IA32_FEATURE_CONTROL:  return 0x0000003a;
+    case MSR_IA32_SYSENTER_CS:      return 0x00000174;
+    case MSR_IA32_SYSENTER_ESP:     return 0x00000175;
+    case MSR_IA32_SYSENTER_EIP:     return 0x00000176;
+    case MSR_IA32_MISC_ENABLE:      return 0x000001a0;
+    case MSR_HYPERVISOR:            return 0x40000000;
+    default: return -1;
+    }
+}
+
 //----------------------------------------------------------------------------
 // Helper functions
 
@@ -1421,11 +1466,12 @@ get_kvmi_registers(
         return false;
 
     msrs.msrs.nmsrs = sizeof(msrs.entries)/sizeof(msrs.entries[0]);
-    msrs.entries[0].index = MSR_EFER;
-    msrs.entries[1].index = MSR_STAR;
+    msrs.entries[0].index = translate_msr_index(MSR_EFER);
+    msrs.entries[1].index = translate_msr_index(MSR_STAR);
 
     err = kvmi_get_registers(kvm->kvmi_dom, vcpu, &regs, &sregs, &msrs.msrs, &mode);
-    if (!err)
+
+    if (err != 0)
         return false;
 
     /* mode should be 8 if VMI_PM_IA32E == vmi->page_mode */
@@ -1499,6 +1545,10 @@ get_kvmi_registers(
         break;
     case MSR_EFER:
         *value = msrs.entries[0].data;
+        break;
+    case MSR_STAR:
+        *value = msrs.entries[1].data;
+        break;
     default:
         return false;
     }
@@ -1827,6 +1877,79 @@ kvm_get_memsize(
 error_exit:
     return VMI_FAILURE;
 }
+
+#ifdef HAVE_LIBKVMI
+status_t
+kvm_get_vcpuregs(
+    vmi_instance_t vmi,
+    registers_t *registers,
+    unsigned long vcpu)
+{
+    struct kvm_regs regs;
+    struct kvm_sregs sregs;
+    struct {
+        struct kvm_msrs msrs;
+        struct kvm_msr_entry entries[6];
+    } msrs = { 0 };
+    int err;
+    unsigned int mode;
+    x86_registers_t *x86 = &registers->x86;
+    kvm_instance_t *kvm = kvm_get_instance(vmi);
+
+    msrs.msrs.nmsrs = sizeof(msrs.entries)/sizeof(msrs.entries[0]);
+    msrs.entries[0].index = translate_msr_index(MSR_IA32_SYSENTER_CS);
+    msrs.entries[1].index = translate_msr_index(MSR_IA32_SYSENTER_ESP);
+    msrs.entries[2].index = translate_msr_index(MSR_IA32_SYSENTER_EIP);
+    msrs.entries[3].index = translate_msr_index(MSR_EFER);
+    msrs.entries[4].index = translate_msr_index(MSR_STAR);
+    msrs.entries[5].index = translate_msr_index(MSR_LSTAR);
+
+    if (!kvm->kvmi_dom)
+        return VMI_FAILURE;
+
+    err = kvmi_get_registers(kvm->kvmi_dom, vcpu, &regs, &sregs, &msrs.msrs, &mode);
+
+    if (err != 0)
+        return VMI_FAILURE;
+
+    x86->rax = regs.rax;
+    x86->rcx = regs.rcx;
+    x86->rdx = regs.rdx;
+    x86->rbx = regs.rbx;
+    x86->rsp = regs.rsp;
+    x86->rbp = regs.rbp;
+    x86->rsi = regs.rsi;
+    x86->rdi = regs.rdi;
+    x86->r8 = regs.r8;
+    x86->r9 = regs.r9;
+    x86->r10 = regs.r10;
+    x86->r11 = regs.r11;
+    x86->r12 = regs.r12;
+    x86->r13 = regs.r13;
+    x86->r14 = regs.r14;
+    x86->r15 = regs.r15;
+    x86->rflags = regs.rflags;
+    x86->dr7 = 0; // FIXME: where do I get this
+    x86->rip = regs.rip;
+    x86->cr0 = sregs.cr0;
+    x86->cr2 = sregs.cr2;
+    x86->cr3 = sregs.cr3;
+    x86->cr4 = sregs.cr4;
+    // Are these correct
+    x86->sysenter_cs = msrs.entries[0].data;
+    x86->sysenter_esp = msrs.entries[1].data;
+    x86->sysenter_eip = msrs.entries[2].data;
+    x86->msr_efer = msrs.entries[3].data;
+    x86->msr_star = msrs.entries[4].data;
+    x86->msr_lstar = msrs.entries[5].data;
+    x86->fs_base = 0; // FIXME: Where do I get these
+    x86->gs_base = 0;
+    x86->cs_arbytes = 0;
+    x86->_pad = 0;
+
+    return VMI_SUCCESS;
+}
+#endif
 
 status_t
 kvm_get_vcpureg(
