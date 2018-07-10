@@ -77,7 +77,9 @@ enum segment_type {
     SEGMENT_ATTR
 };
 
-static int translate_msr_index(int index) {
+static uint32_t
+translate_msr_index(int index, int *err) {
+    *err = 0;
     switch (index) {
     case MSR_EFER:                  return 0xc0000080;
     case MSR_STAR:                  return 0xc0000081;
@@ -118,7 +120,9 @@ static int translate_msr_index(int index) {
     case MSR_IA32_SYSENTER_EIP:     return 0x00000176;
     case MSR_IA32_MISC_ENABLE:      return 0x000001a0;
     case MSR_HYPERVISOR:            return 0x40000000;
-    default: return -1;
+    default:
+        *err = 1;
+        return 0;
     }
 }
 
@@ -1219,6 +1223,23 @@ error_exit:
 }
 
 void *
+kvm_get_memory_kvmi(vmi_instance_t vmi, addr_t paddr, uint32_t length) {
+    kvm_instance_t *kvm = kvm_get_instance(vmi);
+    void *buffer;
+
+    if (!kvm->kvmi_dom)
+        return NULL;
+
+    buffer = g_malloc0(length);
+    if (kvmi_read_physical(kvm->kvmi_dom, paddr, buffer, length) < 0) {
+        g_free(buffer);
+        return NULL;
+    }
+
+    return buffer;
+}
+
+void *
 kvm_get_memory_native(
     vmi_instance_t vmi,
     addr_t paddr,
@@ -1330,6 +1351,14 @@ status_t
 kvm_setup_live_mode(
     vmi_instance_t vmi)
 {
+    #ifdef HAVE_LIBKVMI
+
+    memory_cache_destroy(vmi);
+    memory_cache_init(vmi, kvm_get_memory_kvmi, kvm_release_memory, 1);
+    return VMI_SUCCESS;
+    
+    #else
+
     kvm_instance_t *kvm = kvm_get_instance(vmi);
 
     if (VMI_SUCCESS == test_using_kvm_patch(kvm)) {
@@ -1364,6 +1393,8 @@ kvm_setup_live_mode(
             free(status);
         return VMI_SUCCESS;
     }
+
+    #endif
 }
 
 //----------------------------------------------------------------------------
@@ -1466,8 +1497,8 @@ get_kvmi_registers(
         return false;
 
     msrs.msrs.nmsrs = sizeof(msrs.entries)/sizeof(msrs.entries[0]);
-    msrs.entries[0].index = translate_msr_index(MSR_EFER);
-    msrs.entries[1].index = translate_msr_index(MSR_STAR);
+    msrs.entries[0].index = translate_msr_index(MSR_EFER, &err);
+    msrs.entries[1].index = translate_msr_index(MSR_STAR, &err);
 
     err = kvmi_get_registers(kvm->kvmi_dom, vcpu, &regs, &sregs, &msrs.msrs, &mode);
 
@@ -1897,12 +1928,12 @@ kvm_get_vcpuregs(
     kvm_instance_t *kvm = kvm_get_instance(vmi);
 
     msrs.msrs.nmsrs = sizeof(msrs.entries)/sizeof(msrs.entries[0]);
-    msrs.entries[0].index = translate_msr_index(MSR_IA32_SYSENTER_CS);
-    msrs.entries[1].index = translate_msr_index(MSR_IA32_SYSENTER_ESP);
-    msrs.entries[2].index = translate_msr_index(MSR_IA32_SYSENTER_EIP);
-    msrs.entries[3].index = translate_msr_index(MSR_EFER);
-    msrs.entries[4].index = translate_msr_index(MSR_STAR);
-    msrs.entries[5].index = translate_msr_index(MSR_LSTAR);
+    msrs.entries[0].index = translate_msr_index(MSR_IA32_SYSENTER_CS, &err);
+    msrs.entries[1].index = translate_msr_index(MSR_IA32_SYSENTER_ESP, &err);
+    msrs.entries[2].index = translate_msr_index(MSR_IA32_SYSENTER_EIP, &err);
+    msrs.entries[3].index = translate_msr_index(MSR_EFER, &err);
+    msrs.entries[4].index = translate_msr_index(MSR_STAR, &err);
+    msrs.entries[5].index = translate_msr_index(MSR_LSTAR, &err);
 
     if (!kvm->kvmi_dom)
         return VMI_FAILURE;
@@ -1949,6 +1980,128 @@ kvm_get_vcpuregs(
 
     return VMI_SUCCESS;
 }
+
+status_t
+kvm_set_vcpureg(vmi_instance_t vmi,
+                uint64_t value,
+                reg_t reg,
+                unsigned long vcpu) {
+    kvm_instance_t *kvm = kvm_get_instance(vmi);
+    if (!kvm->kvmi_dom)
+        return VMI_FAILURE;
+    unsigned int mode = 0;
+    struct kvm_regs regs = {0};
+    struct kvm_sregs sregs = {0};
+    struct {
+        struct kvm_msrs msrs;
+        struct kvm_msr_entry entries[0];
+    } msrs = {0};
+    msrs.msrs.nmsrs = 0;
+
+    if (kvmi_get_registers(kvm->kvmi_dom, vcpu, &regs, &sregs, &msrs.msrs, &mode) < 0) {
+        return VMI_FAILURE;
+    }
+
+    // This could use a macro or something
+    switch (reg) {
+    case RAX:
+        regs.rax = value;
+        break;
+    case RBX:
+        regs.rbx = value;
+        break;
+    case RCX:
+        regs.rcx = value;
+        break;
+    case RDX:
+        regs.rdx = value;
+        break;
+    case RSI:
+        regs.rsi = value;
+        break;
+    case RDI:
+        regs.rdi = value;
+        break;
+    case RSP:
+        regs.rsp = value;
+        break;
+    case RBP:
+        regs.rbp = value;
+        break;
+    case R8:
+        regs.r8 = value;
+        break;
+    case R9:
+        regs.r9 = value;
+        break;
+    case R10:
+        regs.r10 = value;
+        break;
+    case R11:
+        regs.r11 = value;
+        break;
+    case R12:
+        regs.r12 = value;
+        break;
+    case R13:
+        regs.r13 = value;
+        break;
+    case R14:
+        regs.r14 = value;
+        break;
+    case R15:
+        regs.r15 = value;
+        break;
+    case RIP:
+        regs.rip = value;
+        break;
+    case RFLAGS:
+        regs.rflags = value;
+        break;
+    default:
+        return VMI_FAILURE;
+    }
+
+    if (kvmi_set_registers(kvm->kvmi_dom, vcpu, &regs) < 0) {
+        return VMI_FAILURE;
+    }
+
+    return VMI_SUCCESS;
+}
+
+status_t kvm_set_vcpuregs(vmi_instance_t vmi,
+                          registers_t *registers,
+                          unsigned long vcpu) {
+    kvm_instance_t *kvm = kvm_get_instance(vmi);
+    if (!kvm->kvmi_dom)
+        return VMI_FAILURE;
+    struct x86_regs *x86 = &registers->x86;
+    struct kvm_regs regs = {
+        .rax = x86->rax,
+        .rbx = x86->rbx,
+        .rcx = x86->rcx,
+        .rdx = x86->rdx,
+        .rsi = x86->rsi,
+        .rdi = x86->rdi,
+        .rsp = x86->rsp,
+        .rbp = x86->rbp,
+        .r8  = x86->r8,
+        .r9  = x86->r9,
+        .r10 = x86->r10,
+        .r11 = x86->r11,
+        .r12 = x86->r12,
+        .r13 = x86->r13,
+        .r14 = x86->r14,
+        .r15 = x86->r15,
+        .rip = x86->rip,
+        .rflags = x86->rflags
+    };
+    if (kvmi_set_registers(kvm->kvmi_dom, vcpu, &regs) < 0) {
+        return VMI_FAILURE;
+    }
+    return VMI_SUCCESS;
+}
+
 #endif
 
 status_t
