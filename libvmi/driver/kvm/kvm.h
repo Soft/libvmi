@@ -99,6 +99,12 @@ size_t kvm_get_dgpma(
     void** medial_addr_ptr,
     size_t count);
 size_t kvm_get_dgvma(
+    vmi_instance_t vmi,
+    addr_t vaddr,
+    pid_t pid,
+    void** medial_addr_ptr,
+    size_t count);
+
 #ifdef HAVE_LIBKVMI
 status_t kvm_get_vcpuregs(
     vmi_instance_t vmi,
@@ -114,12 +120,6 @@ status_t kvm_set_vcpuregs(
     registers_t *registers,
     unsigned long vcpu);
 #endif
-
-    vmi_instance_t vmi,
-    addr_t vaddr,
-    pid_t pid,
-    void** medial_addr_ptr,
-    size_t count);
 
 static inline status_t
 driver_kvm_setup(vmi_instance_t vmi)
