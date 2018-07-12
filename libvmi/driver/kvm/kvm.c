@@ -1910,6 +1910,7 @@ error_exit:
 }
 
 #ifdef HAVE_LIBKVMI
+
 status_t
 kvm_get_vcpuregs(
     vmi_instance_t vmi,
