@@ -1442,7 +1442,8 @@ cb_new_event(
 
 static bool
 init_kvmi(
-    kvm_instance_t *kvm)
+    kvm_instance_t *kvm,
+    const char *sock_path)
 {
     int err = -1;
 
@@ -1451,7 +1452,7 @@ init_kvmi(
     kvm->kvmi_dom = NULL;
 
     pthread_mutex_lock(&kvm->kvm_connect_mutex);
-    kvm->kvmi = kvmi_init_unix_socket("/var/run/testing.sock", cb_kvmi_connect, cb_new_event, kvm);
+    kvm->kvmi = kvmi_init_unix_socket(sock_path, cb_kvmi_connect, cb_new_event, kvm);
     if (kvm->kvmi) {
         struct timeval now;
         if (gettimeofday(&now, NULL) == 0) {
@@ -1621,7 +1622,7 @@ status_t
 kvm_init_vmi(
     vmi_instance_t vmi,
     uint32_t UNUSED(init_flags),
-    void *UNUSED(init_data))
+    void *init_data)
 {
     kvm_instance_t *kvm = kvm_get_instance(vmi);
     virDomainInfo info;
@@ -1712,7 +1713,7 @@ success:
 
 #ifdef HAVE_LIBKVMI
     dbprint(VMI_DEBUG_KVM, "--Connecting to KVMI...\n");
-    if (!init_kvmi(kvm)) {
+    if (!init_kvmi(kvm, (char *)init_data)) {
         dbprint(VMI_DEBUG_KVM, "--KVMI failed\n");
         return VMI_FAILURE;
     }
