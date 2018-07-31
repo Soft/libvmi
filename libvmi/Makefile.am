@@ -63,18 +63,13 @@ drivers     += driver/kvm/kvm.h \
                driver/kvm/kvm_private.h \
                driver/kvm/kvm.c \
                driver/kvm/libvirt_wrapper.c \
-               driver/kvm/libvirt_wrapper.h
-if WITH_LIBKVMI
-drivers     += driver/kvm/libkvmi.c \
+               driver/kvm/libvirt_wrapper.h \
+               driver/kvm/libkvmi.c \
                driver/kvm/include/kvmi/libkvmi.h \
                driver/kvm/include/asm/kvm.h \
                driver/kvm/include/asm/kvmi.h \
                driver/kvm/include/linux/kvm_para.h \
                driver/kvm/include/linux/kvmi.h
-endif
-if SHM
-drivers     += driver/kvm/kvm_shm.h
-endif
 endif
 
 if WITH_XEN
@@ -131,7 +126,7 @@ lib_LTLIBRARIES= libvmi.la
 libvmi_la_SOURCES= $(h_public) $(h_private) $(drivers) $(os) $(c_sources)
 libvmi_la_CFLAGS= -fvisibility=hidden $(GLIB_CFLAGS)
 libvmi_la_CFLAGS+= -Wall -Wextra
-if WITH_LIBKVMI
+if WITH_KVM
 libvmi_la_CFLAGS+= -Idriver/kvm/include
 endif
 libvmi_la_LDFLAGS= -release $(RELEASE) $(GLIB_LIBS)

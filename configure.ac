@@ -87,13 +87,6 @@ AC_ARG_ENABLE([kvm],
       [enable_kvm=yes])
 AM_CONDITIONAL([WITH_KVM], [test x"$enable_kvm" = xyes])
 
-AC_ARG_ENABLE([libkvmi],
-      [AS_HELP_STRING([--disable-libkvmi],
-         [Support memory introspection with live KVM VMs with libkvmi (default is yes)])],
-      [enable_libkvmi=$enableval],
-      [enable_libkvmi=yes])
-AM_CONDITIONAL([WITH_LIBKVMI], [test x"$enable_libkvmi$enable_kvm" = xyesyes])
-
 AC_ARG_ENABLE([shm_snapshot],
       [AS_HELP_STRING([--disable-shm-snapshot],
          [Support shm-snapshot with KVM VMs (Xen is pending) (default is no)])],
@@ -228,18 +221,6 @@ AC_SUBST([GLIB_LIBS])
     AC_CHECK_HEADER(libvirt/libvirt.h, [],
         [AC_MSG_ERROR([No libvirt headers found. Install missing package or re-run with --disable-kvm])])
     AC_DEFINE([ENABLE_KVM], [1], [Define to 1 to enable KVM support.])
-    [if test "$enable_libkvmi" = "yes"]
-    [then]
-        AC_DEFINE([HAVE_LIBKVMI], [1], [Define to 1 to enable KVMI support (depends on KVM).])
-    [fi]
-    AC_CHECK_HEADER([qemu/libvmi_request.h],
-        [AC_DEFINE([HAVE_LIBVMI_REQUEST], 1,
-           [Define to 1 if you have <qemu/libvmi_request.h>.])],
-        [])
-    AC_CHECK_LIB(json-c, json_object_get_int64, [],
-                     [AC_MSG_ERROR(["No working JSON-C library found (libjson-c-dev)."])])
-    AC_CHECK_HEADER(json-c/json.h, [],
-                     [AC_MSG_ERROR(["No working JSON-C library found (libjson-c-dev)."])])
 [fi]
 
 [if test "$enable_shm_snapshot" = "yes"]
