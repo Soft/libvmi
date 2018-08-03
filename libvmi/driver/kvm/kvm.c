@@ -1301,6 +1301,25 @@ kvm_release_memory(
         free(memory);
 }
 
+#if HAVE_LIBKVMI
+status_t
+kvm_put_memory_kvmi(vmi_instance_t vmi,
+                    addr_t paddr,
+                    uint32_t length,
+                    void *buf)
+{
+    kvm_instance_t *kvm = kvm_get_instance(vmi);
+
+    if (!kvm->kvmi_dom)
+        return VMI_FAILURE;
+
+    if (kvmi_write_physical(kvm->kvmi_dom, paddr, buf, length) < 0)
+        return VMI_FAILURE;
+
+    return VMI_SUCCESS;
+}
+#endif
+
 status_t
 kvm_put_memory(
     vmi_instance_t vmi,
@@ -2371,7 +2390,11 @@ kvm_write(
     void *buf,
     uint32_t length)
 {
+    #if HAVE_LIBKVMI
+    return kvm_put_memory_kvmi(vmi, paddr, length, buf);
+    #else
     return kvm_put_memory(vmi, paddr, length, buf);
+    #endif
 }
 
 int
