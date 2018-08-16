@@ -375,7 +375,7 @@ Installation prefix: $prefix
 Feature         | Option
 ----------------|---------------------------
 Xen Support     | --enable-xen=$enable_xen
-KVM Support     | --enable-kvm=$enable_kvm --enable-libkvmi=$enable_libkvmi
+KVM Support     | --enable-kvm=$enable_kvm
 File Support    | --enable-file=$enable_file
 Shm-snapshot    | --enable-shm-snapshot=$enable_shm_snapshot
 Rekall profiles | --enable-rekall-profiles=$rekall
